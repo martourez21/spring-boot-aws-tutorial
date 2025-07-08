@@ -18,14 +18,20 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
 
-      - name: Build JAR file
+      - name: Build JAR file with Maven
         run: mvn clean package -DskipTests
+
+      - name: Verify JAR build
+        run: ls -lh target/
+
+      - name: Rename JAR to app.jar (for Docker simplicity)
+        run: mv target/*.jar target/app.jar
 
       - name: Build Docker image
         run: docker build -t springboot-app .
 
       - name: Save Docker image to file
-        run: docker save springboot-app > springboot-app.tar
+        run: docker save springboot-app -o springboot-app.tar
 
       - name: Copy Docker image to EC2
         uses: appleboy/scp-action@v0.1.7
@@ -36,7 +42,7 @@ jobs:
           source: "springboot-app.tar"
           target: "~/"
 
-      - name: SSH into EC2 and run container
+      - name: SSH into EC2 and deploy container
         uses: appleboy/ssh-action@v1.0.0
         with:
           host: ${{ secrets.EC2_HOST }}
@@ -44,5 +50,6 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             docker load < springboot-app.tar
-            docker stop springboot-app || true && docker rm springboot-app || true
+            docker stop springboot-app || true
+            docker rm springboot-app || true
             docker run -d --name springboot-app -p 8086:8080 springboot-app
